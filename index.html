@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Time Chef → MFP</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; min-height: 100vh; }
+  
+  .header { background: #2e7d32; color: white; padding: 1.25rem 1.5rem; }
+  .header h1 { font-size: 1.2rem; font-weight: 600; }
+  .header p { font-size: 0.8rem; opacity: 0.8; margin-top: 2px; }
+  
+  .container { max-width: 680px; margin: 0 auto; padding: 1.5rem 1rem; }
+  
+  .card { background: white; border-radius: 12px; border: 1px solid #e0e0e0; padding: 1.25rem; margin-bottom: 1rem; }
+  
+  .section-label { font-size: 0.75rem; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.75rem; }
+  
+  .api-row { display: flex; gap: 8px; align-items: center; }
+  .api-row input { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.875rem; font-family: monospace; }
+  .api-row input:focus { outline: none; border-color: #2e7d32; }
+  .btn-save { padding: 8px 16px; background: #2e7d32; color: white; border: none; border-radius: 8px; font-size: 0.875rem; cursor: pointer; white-space: nowrap; }
+  .btn-save:hover { background: #1b5e20; }
+  .api-status { font-size: 0.75rem; margin-top: 6px; }
+  .api-status.ok { color: #2e7d32; }
+  .api-status.empty { color: #999; }
+
+  .drop-zone { border: 2px dashed #c8e6c9; border-radius: 10px; padding: 2rem 1rem; text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; }
+  .drop-zone:hover, .drop-zone.dragover { border-color: #2e7d32; background: #f1f8e9; }
+  .drop-zone input { display: none; }
+  .drop-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+  .drop-text { font-size: 0.875rem; color: #555; }
+  .drop-text span { color: #2e7d32; font-weight: 600; cursor: pointer; }
+
+  .previews { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; margin-top: 1rem; }
+  .preview-item { position: relative; }
+  .preview-item img { width: 100%; height: 90px; object-fit: cover; border-radius: 8px; border: 1px solid #e0e0e0; }
+  .preview-item .remove { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.6); color: white; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; line-height: 1; }
+  .preview-item .status-badge { position: absolute; bottom: 4px; left: 4px; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
+  .status-badge.ok { background: #c8e6c9; color: #1b5e20; }
+  .status-badge.error { background: #ffcdd2; color: #b71c1c; }
+  .status-badge.loading { background: #fff9c4; color: #f57f17; }
+
+  .btn-analyze { width: 100%; padding: 12px; background: #2e7d32; color: white; border: none; border-radius: 10px; font-size: 1rem; font-weight: 600; cursor: pointer; margin-top: 0.75rem; }
+  .btn-analyze:hover { background: #1b5e20; }
+  .btn-analyze:disabled { background: #a5d6a7; cursor: not-allowed; }
+
+  .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 1rem; }
+  .macro-card { background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 10px; padding: 1rem; text-align: center; }
+  .macro-card .label { font-size: 0.7rem; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .macro-card .value { font-size: 1.6rem; font-weight: 700; color: #1a1a1a; }
+  .macro-card .unit { font-size: 0.8rem; color: #666; }
+  .macro-card.calories { border-color: #a5d6a7; background: #f1f8e9; }
+  .macro-card.calories .value { color: #2e7d32; }
+
+  .breakdown { margin-top: 0.75rem; }
+  .breakdown-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f0f0; font-size: 0.875rem; }
+  .breakdown-item:last-child { border-bottom: none; }
+  .breakdown-item .plato { color: #444; }
+  .breakdown-item .macros { color: #666; font-size: 0.8rem; text-align: right; }
+
+  .copy-block { background: #f5f5f5; border: 1px solid #e0e0e0; border-radius: 8px; padding: 0.75rem 1rem; font-size: 0.875rem; color: #333; margin-bottom: 0.75rem; line-height: 1.6; }
+  .btn-copy { width: 100%; padding: 10px; background: white; color: #2e7d32; border: 1.5px solid #2e7d32; border-radius: 8px; font-size: 0.875rem; font-weight: 600; cursor: pointer; }
+  .btn-copy:hover { background: #f1f8e9; }
+  .btn-copy.copied { background: #2e7d32; color: white; }
+
+  .btn-reset { width: 100%; padding: 10px; background: white; color: #666; border: 1px solid #ddd; border-radius: 8px; font-size: 0.875rem; cursor: pointer; margin-top: 8px; }
+  .btn-reset:hover { background: #f5f5f5; }
+
+  .error-msg { background: #ffebee; border: 1px solid #ffcdd2; border-radius: 8px; padding: 0.75rem 1rem; font-size: 0.875rem; color: #b71c1c; margin-top: 0.75rem; }
+
+  .hidden { display: none; }
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.4); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .mfp-hint { font-size: 0.75rem; color: #666; margin-top: 0.5rem; line-height: 1.5; }
+  .mfp-hint strong { color: #333; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Time Chef → MFP</h1>
+  <p>Sube las capturas del menú y obtén los macros totales</p>
+</div>
+
+<div class="container">
+
+  <!-- API Key -->
+  <div class="card">
+    <div class="section-label">API Key de OpenAI</div>
+    <div class="api-row">
+      <input type="password" id="apiKeyInput" placeholder="sk-..." autocomplete="off">
+      <button class="btn-save" onclick="saveKey()">Guardar</button>
+    </div>
+    <div class="api-status empty" id="apiStatus">No hay API key guardada</div>
+  </div>
+
+  <!-- Upload -->
+  <div class="card">
+    <div class="section-label">Capturas del menú de hoy</div>
+    <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+      <div class="drop-icon">📷</div>
+      <div class="drop-text">Arrastra las capturas aquí o <span>selecciona archivos</span></div>
+      <input type="file" id="fileInput" multiple accept="image/*">
+    </div>
+    <div class="previews" id="previews"></div>
+    <div class="error-msg hidden" id="errorMsg"></div>
+    <button class="btn-analyze hidden" id="analyzeBtn" onclick="analyze()">
+      Extraer macros
+    </button>
+  </div>
+
+  <!-- Results -->
+  <div class="card hidden" id="resultsCard">
+    <div class="section-label">Total del día</div>
+    <div class="results-grid">
+      <div class="macro-card calories">
+        <div class="label">Calorías</div>
+        <div class="value" id="rCal">—</div>
+        <div class="unit">kcal</div>
+      </div>
+      <div class="macro-card">
+        <div class="label">Proteínas</div>
+        <div class="value" id="rProt">—</div>
+        <div class="unit">g</div>
+      </div>
+      <div class="macro-card">
+        <div class="label">Carbohidratos</div>
+        <div class="value" id="rCarb">—</div>
+        <div class="unit">g</div>
+      </div>
+      <div class="macro-card">
+        <div class="label">Grasas</div>
+        <div class="value" id="rFat">—</div>
+        <div class="unit">g</div>
+      </div>
+    </div>
+
+    <div class="breakdown" id="breakdown"></div>
+
+    <div style="margin-top: 1.25rem;">
+      <div class="section-label">Copiar para MFP</div>
+      <div class="copy-block" id="copyBlock"></div>
+      <button class="btn-copy" id="copyBtn" onclick="copyToClipboard()">Copiar al portapapeles</button>
+      <p class="mfp-hint">En MFP: <strong>Añadir alimento → Crear alimento</strong> → pega el nombre y los macros en los campos correspondientes.</p>
+    </div>
+
+    <button class="btn-reset" onclick="reset()">Analizar otro menú</button>
+  </div>
+
+</div>
+
+<script>
+const STORAGE_KEY = 'timechef_openai_key';
+let images = [];
+let extractedData = [];
+
+function saveKey() {
+  const key = document.getElementById('apiKeyInput').value.trim();
+  if (!key.startsWith('sk-')) { showError('La API key debe empezar por sk-'); return; }
+  localStorage.setItem(STORAGE_KEY, key);
+  updateKeyStatus();
+}
+
+function getKey() { return localStorage.getItem(STORAGE_KEY) || ''; }
+
+function updateKeyStatus() {
+  const key = getKey();
+  const el = document.getElementById('apiStatus');
+  if (key) {
+    el.textContent = 'API key guardada (' + key.substring(0, 8) + '...)';
+    el.className = 'api-status ok';
+    document.getElementById('apiKeyInput').value = key;
+  } else {
+    el.textContent = 'No hay API key guardada';
+    el.className = 'api-status empty';
+  }
+}
+
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
+fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+function handleFiles(files) {
+  Array.from(files).forEach(file => {
+    if (!file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const id = Date.now() + Math.random();
+      images.push({ id, file, dataUrl: e.target.result, name: file.name });
+      renderPreviews();
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderPreviews() {
+  const container = document.getElementById('previews');
+  container.innerHTML = '';
+  images.forEach(img => {
+    const div = document.createElement('div');
+    div.className = 'preview-item';
+    div.innerHTML = `
+      <img src="${img.dataUrl}" alt="${img.name}">
+      <button class="remove" onclick="removeImage('${img.id}')">×</button>
+      ${img.status ? `<span class="status-badge ${img.status}">${img.statusText}</span>` : ''}
+    `;
+    container.appendChild(div);
+  });
+  document.getElementById('analyzeBtn').classList.toggle('hidden', images.length === 0);
+}
+
+function removeImage(id) {
+  images = images.filter(i => i.id != id);
+  renderPreviews();
+}
+
+async function analyze() {
+  const key = getKey();
+  if (!key) { showError('Introduce y guarda tu API key de OpenAI primero.'); return; }
+  if (images.length === 0) { showError('Sube al menos una captura.'); return; }
+
+  const btn = document.getElementById('analyzeBtn');
+  btn.innerHTML = '<span class="spinner"></span> Analizando...';
+  btn.disabled = true;
+  hideError();
+  extractedData = [];
+
+  for (let img of images) {
+    img.status = 'loading'; img.statusText = '...';
+    renderPreviews();
+    try {
+      const result = await extractMacros(img.dataUrl, key);
+      img.status = 'ok'; img.statusText = '✓';
+      img.macros = result;
+    } catch (e) {
+      img.status = 'error'; img.statusText = '✗';
+      img.macros = null;
+      img.errorMsg = e.message;
+    }
+    extractedData.push(img);
+    renderPreviews();
+  }
+
+  btn.innerHTML = 'Extraer macros';
+  btn.disabled = false;
+  showResults();
+}
+
+async function extractMacros(dataUrl, key) {
+  const base64 = dataUrl.split(',')[1];
+  const mimeMatch = dataUrl.match(/data:([^;]+);/);
+  const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+
+  const prompt = `Eres un extractor de datos nutricionales. Analiza esta captura de pantalla de una app de restaurante (Time Chef).
+Extrae ÚNICAMENTE los valores numéricos del apartado "Valor nutricional por plato":
+- Nombre del plato (título de la pantalla)
+- Calorías (kcal)
+- Proteínas (g)
+- Carbohidratos (g)
+- Grasas (g)
+
+Responde ÚNICAMENTE con un objeto JSON sin texto adicional, sin markdown, sin backticks:
+{"nombre": "...", "calorias": 0, "proteinas": 0, "carbohidratos": 0, "grasas": 0}
+
+Si no encuentras algún valor, usa 0. Si no es una captura de plato nutricional, usa {"error": "no es un plato"}.`;
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      max_tokens: 200,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image_url', image_url: { url: `data:${mime};base64,${base64}`, detail: 'high' } },
+          { type: 'text', text: prompt }
+        ]
+      }]
+    })
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error?.message || 'Error ' + response.status);
+  }
+
+  const data = await response.json();
+  const text = data.choices[0].message.content.trim();
+  const parsed = JSON.parse(text);
+  if (parsed.error) throw new Error(parsed.error);
+  return parsed;
+}
+
+function showResults() {
+  const valid = extractedData.filter(i => i.macros);
+  if (valid.length === 0) { showError('No se pudo extraer ningún plato. Comprueba que las capturas muestran el detalle nutricional de Time Chef.'); return; }
+
+  const total = valid.reduce((acc, i) => ({
+    calorias: acc.calorias + (i.macros.calorias || 0),
+    proteinas: acc.proteinas + (i.macros.proteinas || 0),
+    carbohidratos: acc.carbohidratos + (i.macros.carbohidratos || 0),
+    grasas: acc.grasas + (i.macros.grasas || 0)
+  }), { calorias: 0, proteinas: 0, carbohidratos: 0, grasas: 0 });
+
+  document.getElementById('rCal').textContent = Math.round(total.calorias);
+  document.getElementById('rProt').textContent = Math.round(total.proteinas);
+  document.getElementById('rCarb').textContent = Math.round(total.carbohidratos);
+  document.getElementById('rFat').textContent = Math.round(total.grasas);
+
+  const breakdown = document.getElementById('breakdown');
+  breakdown.innerHTML = valid.map(i => `
+    <div class="breakdown-item">
+      <span class="plato">${i.macros.nombre}</span>
+      <span class="macros">${Math.round(i.macros.calorias)} kcal · P: ${Math.round(i.macros.proteinas)}g · C: ${Math.round(i.macros.carbohidratos)}g · G: ${Math.round(i.macros.grasas)}g</span>
+    </div>
+  `).join('');
+
+  const today = new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+  const copyText = `Comida empresa ${today}\nCalorías: ${Math.round(total.calorias)} kcal\nProteínas: ${Math.round(total.proteinas)} g\nCarbohidratos: ${Math.round(total.carbohidratos)} g\nGrasas: ${Math.round(total.grasas)} g`;
+  document.getElementById('copyBlock').innerHTML = copyText.replace(/\n/g, '<br>');
+  document.getElementById('copyBlock').dataset.plain = copyText;
+
+  document.getElementById('resultsCard').classList.remove('hidden');
+  document.getElementById('resultsCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function copyToClipboard() {
+  const text = document.getElementById('copyBlock').dataset.plain;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copyBtn');
+    btn.textContent = '¡Copiado!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copiar al portapapeles'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+function reset() {
+  images = [];
+  extractedData = [];
+  renderPreviews();
+  document.getElementById('resultsCard').classList.add('hidden');
+  document.getElementById('analyzeBtn').classList.add('hidden');
+  fileInput.value = '';
+  hideError();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function showError(msg) {
+  const el = document.getElementById('errorMsg');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+function hideError() { document.getElementById('errorMsg').classList.add('hidden'); }
+
+updateKeyStatus();
+</script>
+</body>
+</html>
